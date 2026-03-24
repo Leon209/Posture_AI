@@ -38,6 +38,7 @@ export default function App() {
   const [mouthSensitivity, setMouthSensitivity] = useState(50);
   const [calibrationDuration, setCalibrationDuration] = useState(5);
   const [bufferTolerance, setBufferTolerance] = useState(10);
+  const [rangeBaseline, setRangeBaseline] = useState(null);
 
   const postureSensRef = useRef(postureSensitivity);
   postureSensRef.current = postureSensitivity;
@@ -62,8 +63,10 @@ export default function App() {
     if (poseResult.landmarks.length > 0) {
       const metrics = computePostureMetrics(poseResult.landmarks[0]);
       baselineRef.current = metrics;
+      rangeBaselineRef.current = null;
       badPostureSinceRef.current = null;
       mouthOpenSinceRef.current = null;
+      setRangeBaseline(null);
       setCalibrated(true);
       setPostureStatus("good");
       setMouthStatus("ok");
@@ -77,6 +80,7 @@ export default function App() {
     calibrationSamplesRef.current = [];
     calibrationStartRef.current = Date.now();
     rangeBaselineRef.current = null;
+    setRangeBaseline(null);
     badPostureSinceRef.current = null;
     mouthOpenSinceRef.current = null;
     setIsCalibrating(true);
@@ -140,6 +144,7 @@ export default function App() {
               bufferToleranceRef.current
             );
             rangeBaselineRef.current = range;
+            setRangeBaseline(range);
             baselineRef.current = range?.center
               ? { headOffset: range.center.headOffset, shoulderTiltDeg: range.center.shoulderTiltDeg }
               : metrics;
@@ -382,6 +387,21 @@ export default function App() {
           </span>
           <span>
             Head Z offset: {currentMetrics.headOffset.z.toFixed(3)}
+          </span>
+        </div>
+      )}
+
+      {rangeBaseline && (
+        <div className="metrics metrics-bounds">
+          <h4 className="bounds-title">Calibration bounds (debug)</h4>
+          <span>
+            Head Y: [{rangeBaseline.headOffsetY.min.toFixed(3)} … {rangeBaseline.headOffsetY.max.toFixed(3)}]
+          </span>
+          <span>
+            Head Z: [{rangeBaseline.headOffsetZ.min.toFixed(3)} … {rangeBaseline.headOffsetZ.max.toFixed(3)}]
+          </span>
+          <span>
+            Tilt: [{rangeBaseline.shoulderTiltDeg.min.toFixed(1)}° … {rangeBaseline.shoulderTiltDeg.max.toFixed(1)}°]
           </span>
         </div>
       )}
