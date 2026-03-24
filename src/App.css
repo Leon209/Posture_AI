@@ -1,0 +1,425 @@
+/* --- Reset & base ---------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background: #0e0e12;
+  color: #e0e0e6;
+  min-height: 100vh;
+}
+
+/* --- App shell ------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  gap: 1.25rem;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f0f0f5;
+}
+
+/* --- Settings toggle ------------------------------------------------- */
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #2a2a34;
+  border-radius: 8px;
+  background: #18181f;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.settings-toggle:hover {
+  color: #e0e0e6;
+  border-color: #444;
+}
+
+/* --- Settings panel -------------------------------------------------- */
+
+.settings-panel {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: #18181f;
+  border: 1px solid #2a2a34;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-panel h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.15rem;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.setting-label {
+  flex: 0 0 140px;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.setting-row input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #2a2a34;
+  outline: none;
+}
+
+.setting-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #00cc6a;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.setting-row input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 4px rgba(0, 204, 106, 0.2);
+}
+
+.setting-row input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #00cc6a;
+  cursor: pointer;
+}
+
+.setting-value {
+  flex: 0 0 28px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: #666;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+.settings-divider {
+  height: 1px;
+  background: #2a2a34;
+  margin: 0.25rem 0;
+}
+
+/* --- Video container ------------------------------------------------- */
+
+.video-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #18181f;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.video-container video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.video-container canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+  pointer-events: none;
+}
+
+/* --- Loading overlay ------------------------------------------------- */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(14, 14, 18, 0.85);
+  z-index: 10;
+}
+
+.loading-overlay p {
+  font-size: 0.875rem;
+  color: #888;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #333;
+  border-top-color: #00ff88;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Calibrating overlay --------------------------------------------- */
+
+.calibrating-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 10;
+  background: rgba(14, 14, 18, 0.45);
+  pointer-events: none;
+}
+
+.calibrating-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.calibrating-content p {
+  font-size: 0.8rem;
+  color: #ccc;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #2a2a34;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #00cc6a, #00ff88);
+  transition: width 0.15s linear;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  color: #888;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* --- Controls -------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.calibrate-btn {
+  padding: 0.6rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  background: #00cc6a;
+  color: #0e0e12;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.calibrate-btn:hover:not(:disabled) {
+  background: #00ff88;
+  transform: translateY(-1px);
+}
+
+.calibrate-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.calibrate-btn:disabled {
+  background: #2a2a34;
+  color: #555;
+  cursor: not-allowed;
+}
+
+.calibrate-phase-btn {
+  background: #1a6b44;
+  color: #b0f0d0;
+}
+
+.calibrate-phase-btn:hover:not(:disabled) {
+  background: #1f8050;
+}
+
+.calibrate-btn.pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 204, 106, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 204, 106, 0);
+  }
+}
+
+/* --- Status bar ------------------------------------------------------ */
+
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.3s, color 0.3s;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-good {
+  background: rgba(0, 204, 106, 0.12);
+  color: #00ff88;
+}
+
+.status-good .dot {
+  background: #00ff88;
+  box-shadow: 0 0 6px #00ff88;
+}
+
+.status-bad {
+  background: rgba(255, 60, 60, 0.12);
+  color: #ff4444;
+}
+
+.status-bad .dot {
+  background: #ff4444;
+  box-shadow: 0 0 6px #ff4444;
+  animation: blink 1s step-end infinite;
+}
+
+.status-warn {
+  background: rgba(255, 200, 0, 0.12);
+  color: #ffc800;
+}
+
+.status-warn .dot {
+  background: #ffc800;
+  box-shadow: 0 0 6px #ffc800;
+  animation: blink 1s step-end infinite;
+}
+
+.status-neutral {
+  background: rgba(255, 255, 255, 0.06);
+  color: #888;
+}
+
+.status-neutral .dot {
+  background: #555;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* --- Metrics (debug) ------------------------------------------------- */
+
+.metrics {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.75rem;
+  color: #555;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* --- Error card ------------------------------------------------------ */
+
+.error-card {
+  text-align: center;
+  padding: 2rem;
+  background: #1a1a22;
+  border-radius: 12px;
+  border: 1px solid #ff444433;
+  max-width: 400px;
+}
+
+.error-card h2 {
+  color: #ff4444;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.error-card p {
+  color: #888;
+  font-size: 0.875rem;
+}
