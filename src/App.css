@@ -235,9 +235,19 @@ body {
 }
 
 .calibrating-content p {
-  font-size: 0.8rem;
-  color: #ccc;
+  font-size: 0.9rem;
+  color: #f0f0f5;
   text-align: center;
+  font-weight: 500;
+}
+
+.step-indicator {
+  font-size: 0.7rem;
+  color: #00ff88;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
 }
 
 .progress-bar {
@@ -419,6 +429,11 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.25rem;
+}
+
+.bounds-reasons {
+  color: #ff8080;
+  font-weight: 600;
 }
 
 /* --- Error card ------------------------------------------------------ */
