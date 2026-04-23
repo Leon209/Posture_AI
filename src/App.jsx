@@ -2,11 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DrawingUtils, PoseLandmarker, FaceLandmarker } from "@mediapipe/tasks-vision";
 import { useCamera } from "./hooks/useCamera";
 import { useMediaPipe } from "./hooks/useMediaPipe";
+import { useCalibration } from "./hooks/useCalibration";
+import { usePostureStatus } from "./hooks/usePostureStatus";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { CalibrationOverlay } from "./components/CalibrationOverlay";
+import { StatusBar } from "./components/StatusBar";
+import { DebugPanel } from "./components/DebugPanel";
 import {
   computePostureMetrics,
-  fitPostureModels,
   evaluatePosture,
-  evaluateQuadratic,
   isMouthOpen,
   THRESHOLDS,
 } from "./utils/calculations";
@@ -31,29 +35,19 @@ export default function App() {
   const { poseRef, faceRef, modelsReady, modelError } = useMediaPipe();
 
   const canvasRef = useRef(null);
-  const modelsRef = useRef(null);
-  const calibrationSamplesRef = useRef([]);
-  const calibrationStepStartRef = useRef(null);
-  const calibrationStepIdxRef = useRef(0);
-  const badPostureSinceRef = useRef(null);
   const mouthOpenSinceRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
   const rafIdRef = useRef(null);
 
-  const [calibrated, setCalibrated] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(false);
-  const [calibrationStepIdx, setCalibrationStepIdx] = useState(0);
-  const [calibrationProgress, setCalibrationProgress] = useState(0);
-  const [postureStatus, setPostureStatus] = useState("waiting");
-  const [postureReasons, setPostureReasons] = useState([]);
+  const postureStatusApi = usePostureStatus({ warningDelayMs: WARNING_DELAY_MS });
   const [mouthStatus, setMouthStatus] = useState("ok");
   const [currentMetrics, setCurrentMetrics] = useState(null);
   const [currentExpected, setCurrentExpected] = useState({ shoulderY: null, noseZ: null });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [headForwardTolerance, setHeadForwardTolerance] = useState(50);
   const [tiltTolerance, setTiltTolerance] = useState(50);
   const [mouthSensitivity, setMouthSensitivity] = useState(50);
-  const [postureModels, setPostureModels] = useState(null);
 
   const headForwardTolRef = useRef(headForwardTolerance);
   headForwardTolRef.current = headForwardTolerance;
@@ -64,24 +58,20 @@ export default function App() {
 
   const ready = cameraReady && modelsReady;
 
+  const calibration = useCalibration({
+    stepDurationSec: CALIBRATION_STEP_DURATION_SEC,
+    steps: CALIB_STEPS,
+  });
+
   // --- Multi-step guided calibration -----------------------------------
 
   const handleCalibratePhase = useCallback(() => {
-    if (!ready || isCalibrating) return;
-    calibrationSamplesRef.current = [];
-    calibrationStepIdxRef.current = 0;
-    calibrationStepStartRef.current = Date.now();
-    modelsRef.current = null;
-    badPostureSinceRef.current = null;
+    if (!ready || calibration.isCalibrating) return;
+    calibration.start();
     mouthOpenSinceRef.current = null;
-    setPostureModels(null);
-    setIsCalibrating(true);
-    setCalibrationStepIdx(0);
-    setCalibrationProgress(0);
-    setPostureStatus("waiting");
-    setPostureReasons([]);
+    postureStatusApi.reset();
     setMouthStatus("ok");
-  }, [ready, isCalibrating]);
+  }, [ready, calibration, postureStatusApi]);
 
   // --- Detection loop --------------------------------------------------
 
@@ -143,59 +133,22 @@ export default function App() {
         : null;
       setCurrentMetrics(metrics);
 
-      if (metrics && isCalibrating) {
-        const stepIdx = calibrationStepIdxRef.current;
-        const stepId = CALIB_STEPS[stepIdx].id;
-        calibrationSamplesRef.current.push({ step: stepId, metrics });
-
-        const elapsed = Date.now() - calibrationStepStartRef.current;
-        const durMs = CALIBRATION_STEP_DURATION_SEC * 1000;
-        const pct = Math.min(100, (elapsed / durMs) * 100);
-        setCalibrationProgress(pct);
-
-        if (elapsed >= durMs) {
-          if (stepIdx < CALIB_STEPS.length - 1) {
-            const nextIdx = stepIdx + 1;
-            calibrationStepIdxRef.current = nextIdx;
-            calibrationStepStartRef.current = Date.now();
-            setCalibrationStepIdx(nextIdx);
-            setCalibrationProgress(0);
-          } else {
-            const models = fitPostureModels(calibrationSamplesRef.current);
-            modelsRef.current = models;
-            setPostureModels(models);
-            calibrationSamplesRef.current = [];
-            setIsCalibrating(false);
-            setCalibrationProgress(100);
-            setCalibrated(true);
-            setPostureStatus("good");
-            setPostureReasons([]);
-          }
+      if (metrics && calibration.isCalibrating) {
+        const evt = calibration.ingest(metrics);
+        if (evt?.type === "done") {
+          postureStatusApi.markGood();
         }
-      } else if (metrics && calibrated) {
-        const result = evaluatePosture(metrics, modelsRef.current, {
+      } else if (metrics && calibration.calibrated) {
+        const result = evaluatePosture(metrics, calibration.modelsRef.current, {
           shoulder: 50,
           headForward: headForwardTolRef.current,
           tilt: tiltTolRef.current,
         });
         setCurrentExpected(result.expected);
-
-        const now = Date.now();
-        if (result.bad) {
-          if (badPostureSinceRef.current === null) {
-            badPostureSinceRef.current = now;
-          } else if (now - badPostureSinceRef.current > WARNING_DELAY_MS) {
-            setPostureStatus("bad");
-            setPostureReasons(result.reasons);
-          }
-        } else {
-          badPostureSinceRef.current = null;
-          setPostureStatus("good");
-          setPostureReasons([]);
-        }
+        postureStatusApi.ingest({ bad: result.bad, reasons: result.reasons });
       }
 
-      if (calibrated && faceLandmarks) {
+      if (calibration.calibrated && faceLandmarks) {
         const mouthOpen = isMouthOpen(faceLandmarks, mouthSensRef.current);
         const now = Date.now();
         if (mouthOpen) {
@@ -218,7 +171,14 @@ export default function App() {
     return () => {
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [ready, calibrated, isCalibrating, videoRef, poseRef, faceRef]);
+  }, [
+    ready,
+    calibration,
+    postureStatusApi,
+    videoRef,
+    poseRef,
+    faceRef,
+  ]);
 
   // --- Render ----------------------------------------------------------
 
@@ -235,78 +195,68 @@ export default function App() {
     );
   }
 
-  const reasonLabels = postureReasons.map((r) => REASON_LABELS[r] ?? r);
+  const reasonLabelsArr = postureStatusApi.postureReasons.map((r) => REASON_LABELS[r] ?? r);
   const statusLabel =
-    postureStatus === "bad"
-      ? reasonLabels.length > 0
-        ? reasonLabels.join(" + ")
+    postureStatusApi.postureStatus === "bad"
+      ? reasonLabelsArr.length > 0
+        ? reasonLabelsArr.join(" + ")
         : "Sit straight!"
-      : postureStatus === "good"
+      : postureStatusApi.postureStatus === "good"
         ? "Good posture"
         : "Waiting for calibration";
 
   const statusClass =
-    postureStatus === "bad"
+    postureStatusApi.postureStatus === "bad"
       ? "status-bad"
-      : postureStatus === "good"
+      : postureStatusApi.postureStatus === "good"
         ? "status-good"
         : "status-neutral";
 
-  const currentStep = CALIB_STEPS[calibrationStepIdx];
+  const currentStep = CALIB_STEPS[calibration.stepIdx];
 
   return (
     <div className="app">
-      <div className="header">
-        <h1 className="title">Sitting Straight</h1>
-        <button
-          className="settings-toggle"
-          onClick={() => setSettingsOpen((o) => !o)}
-          aria-label="Settings"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="10" cy="10" r="3" />
-            <path d="M10 1.5v2M10 16.5v2M3.4 3.4l1.4 1.4M15.2 15.2l1.4 1.4M1.5 10h2M16.5 10h2M3.4 16.6l1.4-1.4M15.2 4.8l1.4-1.4" />
-          </svg>
-        </button>
+      <div className="topbar">
+        <div className="topbar-title">Posture.AI</div>
+        <div className="topbar-actions">
+          <button
+            className="menu-button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+          </button>
+
+          {menuOpen && (
+            <div className="topbar-menu" role="menu">
+              <button
+                className="menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setSettingsOpen((o) => !o);
+                  setMenuOpen(false);
+                }}
+              >
+                Settings
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {settingsOpen && (
-        <div className="settings-panel">
-          <h3>Posture Tolerances</h3>
-          <label className="setting-row">
-            <span className="setting-label">Head forward</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={headForwardTolerance}
-              onChange={(e) => setHeadForwardTolerance(Number(e.target.value))}
-            />
-            <span className="setting-value">{headForwardTolerance}</span>
-          </label>
-          <label className="setting-row">
-            <span className="setting-label">Head tilt</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={tiltTolerance}
-              onChange={(e) => setTiltTolerance(Number(e.target.value))}
-            />
-            <span className="setting-value">{tiltTolerance}</span>
-          </label>
-          <label className="setting-row">
-            <span className="setting-label">Mouth sensitivity</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={mouthSensitivity}
-              onChange={(e) => setMouthSensitivity(Number(e.target.value))}
-            />
-            <span className="setting-value">{mouthSensitivity}</span>
-          </label>
-        </div>
+        <SettingsPanel
+          headForwardTolerance={headForwardTolerance}
+          setHeadForwardTolerance={setHeadForwardTolerance}
+          tiltTolerance={tiltTolerance}
+          setTiltTolerance={setTiltTolerance}
+          mouthSensitivity={mouthSensitivity}
+          setMouthSensitivity={setMouthSensitivity}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
 
       <div className="video-container">
@@ -320,27 +270,17 @@ export default function App() {
           </div>
         )}
 
-        {isCalibrating && (
-          <div className="calibrating-overlay">
-            <div className="calibrating-content">
-              <span className="step-indicator">
-                Step {calibrationStepIdx + 1} of {CALIB_STEPS.length}
-              </span>
-              <p>{currentStep.label}</p>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${calibrationProgress}%` }}
-                />
-              </div>
-              <span className="progress-label">
-                {Math.ceil(
-                  CALIBRATION_STEP_DURATION_SEC -
-                    (CALIBRATION_STEP_DURATION_SEC * calibrationProgress) / 100
-                )}s
-              </span>
-            </div>
-          </div>
+        {calibration.isCalibrating && (
+          <CalibrationOverlay
+            stepIdx={calibration.stepIdx}
+            stepCount={CALIB_STEPS.length}
+            stepLabel={currentStep.label}
+            progressPct={calibration.progressPct}
+            remainingSec={Math.ceil(
+              CALIBRATION_STEP_DURATION_SEC -
+                (CALIBRATION_STEP_DURATION_SEC * calibration.progressPct) / 100
+            )}
+          />
         )}
       </div>
 
@@ -348,27 +288,21 @@ export default function App() {
         <button
           className="calibrate-btn calibrate-phase-btn"
           onClick={handleCalibratePhase}
-          disabled={!ready || isCalibrating}
+          disabled={!ready || calibration.isCalibrating}
         >
-          {isCalibrating ? "Calibrating\u2026" : (calibrated ? "Re-calibrate" : "Calibrate")}
+          {calibration.isCalibrating
+            ? "Calibrating\u2026"
+            : (calibration.calibrated ? "Re-calibrate" : "Calibrate")}
         </button>
       </div>
 
-      <div className="status-bar">
-        <div className={`status-badge ${statusClass}`}>
-          <span className="dot" />
-          {statusLabel}
-        </div>
+      <StatusBar
+        statusClass={statusClass}
+        statusLabel={statusLabel}
+        mouthStatus={mouthStatus}
+      />
 
-        {mouthStatus === "open" && (
-          <div className="status-badge status-warn">
-            <span className="dot" />
-            Close your mouth
-          </div>
-        )}
-      </div>
-
-      {currentMetrics && calibrated && (
+      {currentMetrics && calibration.calibrated && (
         <div className="metrics">
           <span>
             Shoulder Z: {currentMetrics.shoulderMid.z.toFixed(3)}
@@ -387,52 +321,13 @@ export default function App() {
         </div>
       )}
 
-      {postureModels && (
-        <div className="metrics metrics-bounds">
-          <h4 className="bounds-title">Posture models (debug)</h4>
-          <span>
-            Samples: {postureModels.sampleCount}
-            {" · "}
-            Z span: [{postureModels.zRange.min.toFixed(3)} … {postureModels.zRange.max.toFixed(3)}]
-          </span>
-          <span>
-            Shoulder Y = {postureModels.shoulderYModel.a.toFixed(3)}·z² +{" "}
-            {postureModels.shoulderYModel.b.toFixed(3)}·z +{" "}
-            {postureModels.shoulderYModel.c.toFixed(3)}
-            {" (deg "}{postureModels.shoulderYModel.degree}{")"}
-          </span>
-          <span>
-            Nose Z = {postureModels.noseZModel.a.toFixed(3)}·z² +{" "}
-            {postureModels.noseZModel.b.toFixed(3)}·z +{" "}
-            {postureModels.noseZModel.c.toFixed(3)}
-            {" (deg "}{postureModels.noseZModel.degree}{")"}
-          </span>
-          {postureModels.tiltRange && (
-            <span>
-              Tilt range: [{postureModels.tiltRange.min.toFixed(4)} …{" "}
-              {postureModels.tiltRange.max.toFixed(4)}]{" "}
-              ({postureModels.tiltSampleCount} neutral samples)
-            </span>
-          )}
-          {currentMetrics && (
-            <span>
-              Expected at live Z: Y=
-              {currentExpected.shoulderY != null
-                ? currentExpected.shoulderY.toFixed(3)
-                : evaluateQuadratic(postureModels.shoulderYModel, currentMetrics.shoulderMid.z)?.toFixed(3)}
-              {" · noseZ="}
-              {currentExpected.noseZ != null
-                ? currentExpected.noseZ.toFixed(3)
-                : evaluateQuadratic(postureModels.noseZModel, currentMetrics.shoulderMid.z)?.toFixed(3)}
-            </span>
-          )}
-          {postureReasons.length > 0 && (
-            <span className="bounds-reasons">
-              Failing: {postureReasons.map((r) => REASON_LABELS[r] ?? r).join(", ")}
-            </span>
-          )}
-        </div>
-      )}
+      <DebugPanel
+        postureModels={calibration.models}
+        currentMetrics={currentMetrics}
+        currentExpected={currentExpected}
+        postureReasons={postureStatusApi.postureReasons}
+        reasonLabels={reasonLabelsArr.join(", ")}
+      />
     </div>
   );
 }
