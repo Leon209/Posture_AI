@@ -7,7 +7,6 @@ import { usePostureStatus } from "./hooks/usePostureStatus";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { CalibrationOverlay } from "./components/CalibrationOverlay";
 import { StatusBar } from "./components/StatusBar";
-import { DebugPanel } from "./components/DebugPanel";
 import {
   computePostureMetrics,
   evaluatePosture,
@@ -41,8 +40,6 @@ export default function App() {
 
   const postureStatusApi = usePostureStatus({ warningDelayMs: WARNING_DELAY_MS });
   const [mouthStatus, setMouthStatus] = useState("ok");
-  const [currentMetrics, setCurrentMetrics] = useState(null);
-  const [currentExpected, setCurrentExpected] = useState({ shoulderY: null, noseZ: null });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [headForwardTolerance, setHeadForwardTolerance] = useState(50);
@@ -131,7 +128,6 @@ export default function App() {
       const metrics = poseLandmarks
         ? computePostureMetrics(poseLandmarks, faceLandmarks)
         : null;
-      setCurrentMetrics(metrics);
 
       if (metrics && calibration.isCalibrating) {
         const evt = calibration.ingest(metrics);
@@ -144,7 +140,6 @@ export default function App() {
           headForward: headForwardTolRef.current,
           tilt: tiltTolRef.current,
         });
-        setCurrentExpected(result.expected);
         postureStatusApi.ingest({ bad: result.bad, reasons: result.reasons });
       }
 
@@ -300,33 +295,6 @@ export default function App() {
         statusClass={statusClass}
         statusLabel={statusLabel}
         mouthStatus={mouthStatus}
-      />
-
-      {currentMetrics && calibration.calibrated && (
-        <div className="metrics">
-          <span>
-            Shoulder Z: {currentMetrics.shoulderMid.z.toFixed(3)}
-          </span>
-          <span>
-            Shoulder Y: {currentMetrics.shoulderMid.y.toFixed(3)}
-          </span>
-          <span>
-            Nose Z: {currentMetrics.noseZ.toFixed(3)}
-          </span>
-          {currentMetrics.tiltZ != null && (
-            <span>
-              Tilt Z: {currentMetrics.tiltZ.toFixed(4)}
-            </span>
-          )}
-        </div>
-      )}
-
-      <DebugPanel
-        postureModels={calibration.models}
-        currentMetrics={currentMetrics}
-        currentExpected={currentExpected}
-        postureReasons={postureStatusApi.postureReasons}
-        reasonLabels={reasonLabelsArr.join(", ")}
       />
     </div>
   );
